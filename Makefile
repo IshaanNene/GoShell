@@ -13,3 +13,9 @@ test: test-unit test-integration
 clean:
 	rm -f goshell
 	rm -f testfile.txt
+
+gits_up:
+	git status
+	git add .
+	git commit -m "Update"
+	git push
