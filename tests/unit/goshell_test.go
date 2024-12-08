@@ -14,7 +14,8 @@ func executeCommand(cmd *cobra.Command, args ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return output.UsageString(), nil
+	
+	return output.UsageString(), nil // This might need to be changed based on the command's expected output
 }
 
 func TestTouchCommand(t *testing.T) {
