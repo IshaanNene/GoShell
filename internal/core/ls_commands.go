@@ -46,7 +46,10 @@ func listFiles(dir string, showHidden, appendSlashToDir, sortByTime, reverseOrde
 		info, err := file.Info()
 		checkError(err, "getting file info")
 
-		stat := info.Sys().(*syscall.Stat_t)
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			log.Fatalf("Error retrieving file system information for %s", file.Name())
+		}
 		group := fmt.Sprintf("%d", stat.Gid)
 
 		fileInfos = append(fileInfos, FileInfoStruct{
@@ -123,15 +126,15 @@ var LsCmd = &cobra.Command{
 		recursive, _ := cmd.Flags().GetBool("R")
 		listInode, _ := cmd.Flags().GetBool("i")
 		showGroup, _ := cmd.Flags().GetBool("g")
-		humanReadable, _ := cmd.Flags().GetBool("h")
-		listDir, _ := cmd.Flags().GetBool("d")
+		humanReadable, _ := cmd.Flags().GetBool("human-readable")
+		listDir, _ := cmd.Flags().GetBool("list-dir")
 
 		listFiles(dir, showHidden, appendSlashToDir, sortByTime, reverseOrder, sortBySize, recursive, listInode, showGroup, humanReadable, listDir)
 	},
 }
 
 func init() {
-	LsCmd.Flags().StringP("directory", "d", ".", "Directory to list")
+	LsCmd.Flags().StringP("directory", "D", ".", "Directory to list")
 	LsCmd.Flags().BoolP("a", "a", false, "Include hidden files")
 	LsCmd.Flags().BoolP("F", "F", false, "Append indicator (one of */=>@|) to entries")
 	LsCmd.Flags().BoolP("t", "t", false, "Sort by modification time, newest first")
@@ -140,6 +143,6 @@ func init() {
 	LsCmd.Flags().BoolP("R", "R", false, "List subdirectories recursively")
 	LsCmd.Flags().BoolP("i", "i", false, "Print the index number of each file")
 	LsCmd.Flags().BoolP("g", "g", false, "Display group ownership")
-	LsCmd.Flags().BoolP("h", "h", false, "Print sizes in human-readable format")
-	LsCmd.Flags().BoolP("d", "d", false, "List directories themselves, not their contents")
+	LsCmd.Flags().BoolP("human-readable", "H", false, "Print sizes in human-readable format")
+	LsCmd.Flags().BoolP("list-dir", "l", false, "List directories themselves, not their contents")
 }
