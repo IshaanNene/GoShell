@@ -1,13 +1,14 @@
 package core
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/thanhpk/ascii"
+	_ "github.com/thanhpk/ascii"
 )
 
 var CatCmd = &cobra.Command{
@@ -18,12 +19,14 @@ var CatCmd = &cobra.Command{
 		number, _ := cmd.Flags().GetBool("number")
 		numberNonBlank, _ := cmd.Flags().GetBool("number-nonblank")
 		squeezeBlank, _ := cmd.Flags().GetBool("squeeze-blank")
+		showEnds, _ := cmd.Flags().GetBool("show-ends")
+		showTabs, _ := cmd.Flags().GetBool("show-tabs")
 
 		if len(args) > 1 && args[len(args)-2] == "mx" {
 			mergeFiles(args[:len(args)-2], args[len(args)-1])
 		} else {
 			for _, file := range args {
-				displayFile(file, number, numberNonBlank, squeezeBlank)
+				displayFile(file, number, numberNonBlank, squeezeBlank, showEnds, showTabs)
 			}
 		}
 	},
@@ -34,6 +37,8 @@ func init() {
 	CatCmd.Flags().BoolP("number", "n", false, "Number all output lines")
 	CatCmd.Flags().BoolP("number-nonblank", "b", false, "Number non-empty output lines, overrides -n")
 	CatCmd.Flags().BoolP("squeeze-blank", "s", false, "Suppress repeated empty output lines")
+	CatCmd.Flags().BoolP("show-ends", "E", false, "Display $ at end of each line")
+	CatCmd.Flags().BoolP("show-tabs", "T", false, "Display TAB characters as ^I")
 }
 
 func mergeFiles(files []string, outputFile string) {
@@ -53,28 +58,42 @@ func mergeFiles(files []string, outputFile string) {
 	fmt.Println("Contents successfully written to", outputFile)
 }
 
-func displayFile(file string, number, numberNonBlank, squeezeBlank bool) {
-	contents, err := os.ReadFile(file)
+func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, showTabs bool) {
+	f, err := os.Open(file)
 	if err != nil {
 		log.Fatalf("Error reading file %s: %v", file, err)
 	}
+	defer f.Close()
 
-	lines := strings.Split(string(ascii.Convert(string(contents))), "\n")
+	scanner := bufio.NewScanner(f)
 	fmt.Println("Contents of:", file)
 
 	lineNumber := 1
-	for i, line := range lines {
-		if squeezeBlank && i > 0 && lines[i-1] == "" && line == "" {
+	prevLineEmpty := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if squeezeBlank && prevLineEmpty && line == "" {
 			continue
+		}
+		if showTabs {
+			line = strings.ReplaceAll(line, "\t", "^I")
+		}
+		if showEnds {
+			line += "$"
 		}
 		if numberNonBlank && line != "" {
 			fmt.Printf("    %d %s\n", lineNumber, line)
 			lineNumber++
 		} else if number {
-			fmt.Printf("    %d %s\n", i+1, line)
+			fmt.Printf("    %d %s\n", lineNumber, line)
+			lineNumber++
 		} else {
 			fmt.Println(line)
 		}
+		prevLineEmpty = (line == "")
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Error scanning file %s: %v", file, err)
 	}
 	fmt.Println()
 }

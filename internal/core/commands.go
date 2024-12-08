@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"os/user"
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,7 @@ var DateCmd = &cobra.Command{
 			today.Year())
 	},
 }
+
 var Iamwho = &cobra.Command{
 	Use:   "iamwho",
 	Short: "The whoami command",
@@ -45,5 +47,22 @@ var Iamwho = &cobra.Command{
 		} else {
 			fmt.Println(g.Username)
 		}
+	},
+}
+
+var EchoCmd = &cobra.Command{
+	Use:   "echo [text]",
+	Short: "Display a line of text",
+	Args:  cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(strings.Join(args, " "))
+	},
+}
+
+var ClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Clear the terminal screen",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Print("\033[H\033[2J")
 	},
 }

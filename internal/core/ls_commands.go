@@ -6,14 +6,17 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"syscall"
 	"time"
 )
 
-type FileTimeStruct struct {
-	Fname string
-	Ftime time.Time
+type FileInfoStruct struct {
+	Fname  string
+	Ftime  time.Time
+	Fsize  int64
+	Fgroup string
 }
 
 func checkError(err error, context string) {
@@ -21,49 +24,88 @@ func checkError(err error, context string) {
 		log.Fatalf("Error %s: %v", context, err)
 	}
 }
-func listFiles(dir string, showHidden bool, appendSlashToDir bool, sortByTime bool, listInode bool, humanReadable bool) {
-	files, err := os.ReadDir(dir)
-	checkError(err, "reading directory")
 
-	if sortByTime {
-		var fileTimes []FileTimeStruct
-		for _, file := range files {
-			info, err := file.Info()
-			checkError(err, "getting file info")
-			fileTimes = append(fileTimes, FileTimeStruct{Fname: file.Name(), Ftime: info.ModTime()})
-		}
-		sort.Slice(fileTimes, func(i, j int) bool {
-			return fileTimes[i].Ftime.Before(fileTimes[j].Ftime)
-		})
-		for _, file := range fileTimes {
-			fmt.Println(file.Fname)
-		}
-		return
+func listFiles(dir string, showHidden, appendSlashToDir, sortByTime, reverseOrder, sortBySize, recursive, listInode, showGroup, humanReadable, listDir bool) {
+	var files []os.DirEntry
+	var err error
+
+	if listDir {
+		files, err = os.ReadDir(filepath.Dir(dir))
+		checkError(err, "reading directory")
+	} else {
+		files, err = os.ReadDir(dir)
+		checkError(err, "reading directory")
 	}
 
+	var fileInfos []FileInfoStruct
 	for _, file := range files {
-		name := file.Name()
-
-		if !showHidden && name[0] == '.' {
+		if !showHidden && file.Name()[0] == '.' {
 			continue
 		}
 
+		info, err := file.Info()
+		checkError(err, "getting file info")
+
+		stat := info.Sys().(*syscall.Stat_t)
+		group := fmt.Sprintf("%d", stat.Gid)
+
+		fileInfos = append(fileInfos, FileInfoStruct{
+			Fname:  file.Name(),
+			Ftime:  info.ModTime(),
+			Fsize:  info.Size(),
+			Fgroup: group,
+		})
+	}
+
+	if sortByTime {
+		sort.Slice(fileInfos, func(i, j int) bool {
+			if reverseOrder {
+				return fileInfos[i].Ftime.After(fileInfos[j].Ftime)
+			}
+			return fileInfos[i].Ftime.Before(fileInfos[j].Ftime)
+		})
+	} else if sortBySize {
+		sort.Slice(fileInfos, func(i, j int) bool {
+			if reverseOrder {
+				return fileInfos[i].Fsize > fileInfos[j].Fsize
+			}
+			return fileInfos[i].Fsize < fileInfos[j].Fsize
+		})
+	} else if reverseOrder {
+		sort.Slice(fileInfos, func(i, j int) bool {
+			return fileInfos[i].Fname > fileInfos[j].Fname
+		})
+	}
+
+	for _, fileInfo := range fileInfos {
+		name := fileInfo.Fname
+
 		if listInode {
-			info, err := os.Stat(file.Name())
+			info, err := os.Stat(filepath.Join(dir, fileInfo.Fname))
 			checkError(err, "getting file stat")
 			stat := info.Sys().(*syscall.Stat_t)
 			fmt.Printf("%d ", stat.Ino)
 		}
 
-		if appendSlashToDir && file.IsDir() {
+		if showGroup {
+			fmt.Printf("%s ", fileInfo.Fgroup)
+		}
+
+		if appendSlashToDir && fileInfo.Fname[len(fileInfo.Fname)-1] != '/' {
 			name += "/"
 		}
+
 		if humanReadable {
-			info, err := os.Stat(file.Name())
-			checkError(err, "getting file info")
-			fmt.Printf("%s %s\n", humanize.Bytes(uint64(info.Size())), name)
+			fmt.Printf("%s %s\n", humanize.Bytes(uint64(fileInfo.Fsize)), name)
 		} else {
 			fmt.Println(name)
+		}
+
+		if recursive && fileInfo.Fname != "." && fileInfo.Fname != ".." {
+			subDir := filepath.Join(dir, fileInfo.Fname)
+			if fileInfo.Fname[len(fileInfo.Fname)-1] == '/' {
+				listFiles(subDir, showHidden, appendSlashToDir, sortByTime, reverseOrder, sortBySize, recursive, listInode, showGroup, humanReadable, false)
+			}
 		}
 	}
 }
@@ -76,10 +118,15 @@ var LsCmd = &cobra.Command{
 		showHidden, _ := cmd.Flags().GetBool("a")
 		appendSlashToDir, _ := cmd.Flags().GetBool("F")
 		sortByTime, _ := cmd.Flags().GetBool("t")
+		reverseOrder, _ := cmd.Flags().GetBool("r")
+		sortBySize, _ := cmd.Flags().GetBool("S")
+		recursive, _ := cmd.Flags().GetBool("R")
 		listInode, _ := cmd.Flags().GetBool("i")
-		humanReadable, _ := cmd.Flags().GetBool("V")
+		showGroup, _ := cmd.Flags().GetBool("g")
+		humanReadable, _ := cmd.Flags().GetBool("h")
+		listDir, _ := cmd.Flags().GetBool("d")
 
-		listFiles(dir, showHidden, appendSlashToDir, sortByTime, listInode, humanReadable)
+		listFiles(dir, showHidden, appendSlashToDir, sortByTime, reverseOrder, sortBySize, recursive, listInode, showGroup, humanReadable, listDir)
 	},
 }
 
@@ -88,6 +135,11 @@ func init() {
 	LsCmd.Flags().BoolP("a", "a", false, "Include hidden files")
 	LsCmd.Flags().BoolP("F", "F", false, "Append indicator (one of */=>@|) to entries")
 	LsCmd.Flags().BoolP("t", "t", false, "Sort by modification time, newest first")
+	LsCmd.Flags().BoolP("r", "r", false, "Reverse order while sorting")
+	LsCmd.Flags().BoolP("S", "S", false, "Sort by file size, largest first")
+	LsCmd.Flags().BoolP("R", "R", false, "List subdirectories recursively")
 	LsCmd.Flags().BoolP("i", "i", false, "Print the index number of each file")
-	LsCmd.Flags().BoolP("V", "V", false, "print sizes like 1K 234M 2G")
+	LsCmd.Flags().BoolP("g", "g", false, "Display group ownership")
+	LsCmd.Flags().BoolP("h", "h", false, "Print sizes in human-readable format")
+	LsCmd.Flags().BoolP("d", "d", false, "List directories themselves, not their contents")
 }
