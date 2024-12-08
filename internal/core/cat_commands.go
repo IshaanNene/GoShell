@@ -21,24 +21,25 @@ var CatCmd = &cobra.Command{
 		squeezeBlank, _ := cmd.Flags().GetBool("squeeze-blank")
 		showEnds, _ := cmd.Flags().GetBool("show-ends")
 		showTabs, _ := cmd.Flags().GetBool("show-tabs")
+		showNonPrinting, _ := cmd.Flags().GetBool("show-nonprinting")
 
 		if len(args) > 1 && args[len(args)-2] == "mx" {
 			mergeFiles(args[:len(args)-2], args[len(args)-1])
 		} else {
 			for _, file := range args {
-				displayFile(file, number, numberNonBlank, squeezeBlank, showEnds, showTabs)
+				displayFile(file, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting)
 			}
 		}
 	},
 }
 
 func init() {
-	// Define the flags
 	CatCmd.Flags().BoolP("number", "n", false, "Number all output lines")
 	CatCmd.Flags().BoolP("number-nonblank", "b", false, "Number non-empty output lines, overrides -n")
 	CatCmd.Flags().BoolP("squeeze-blank", "s", false, "Suppress repeated empty output lines")
 	CatCmd.Flags().BoolP("show-ends", "E", false, "Display $ at end of each line")
 	CatCmd.Flags().BoolP("show-tabs", "T", false, "Display TAB characters as ^I")
+	CatCmd.Flags().BoolP("show-nonprinting", "v", false, "Use ^ and M- notation, except for LFD and TAB")
 }
 
 func mergeFiles(files []string, outputFile string) {
@@ -58,7 +59,7 @@ func mergeFiles(files []string, outputFile string) {
 	fmt.Println("Contents successfully written to", outputFile)
 }
 
-func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, showTabs bool) {
+func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting bool) {
 	f, err := os.Open(file)
 	if err != nil {
 		log.Fatalf("Error reading file %s: %v", file, err)
@@ -81,6 +82,9 @@ func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, sh
 		if showEnds {
 			line += "$"
 		}
+		if showNonPrinting {
+			line = showNonPrintableChars(line)
+		}
 		if numberNonBlank && line != "" {
 			fmt.Printf("    %d %s\n", lineNumber, line)
 			lineNumber++
@@ -96,4 +100,20 @@ func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, sh
 		log.Fatalf("Error scanning file %s: %v", file, err)
 	}
 	fmt.Println()
+}
+
+func showNonPrintableChars(line string) string {
+	var result strings.Builder
+	for _, r := range line {
+		if r < 32 || r == 127 {
+			if r == '\t' || r == '\n' {
+				result.WriteRune(r)
+			} else {
+				result.WriteString(fmt.Sprintf("^%c", r+64))
+			}
+		} else {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }
