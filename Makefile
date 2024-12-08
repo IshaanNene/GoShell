@@ -3,10 +3,10 @@ build:
 	chmod +x goshell
 
 test-unit: build
-	go test ./tests/unit
+	go test ./tests/unit -v
 
 test-integration: build
-	go test ./tests/integration
+	go test ./tests/integration -v
 
 test: test-unit test-integration
 
