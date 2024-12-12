@@ -128,21 +128,23 @@ var LsCmd = &cobra.Command{
 		showGroup, _ := cmd.Flags().GetBool("g")
 		humanReadable, _ := cmd.Flags().GetBool("human-readable")
 		listDir, _ := cmd.Flags().GetBool("list-dir")
+		if dir == "" {
+			dir = "."
+		}
 
 		listFiles(dir, showHidden, appendSlashToDir, sortByTime, reverseOrder, sortBySize, recursive, listInode, showGroup, humanReadable, listDir)
 	},
 }
-
 func init() {
-	LsCmd.Flags().StringP("directory", "D", ".", "Directory to list")
-	LsCmd.Flags().BoolP("a", "a", false, "Include hidden files")
-	LsCmd.Flags().BoolP("F", "F", false, "Append indicator (one of */=>@|) to entries")
-	LsCmd.Flags().BoolP("t", "t", false, "Sort by modification time, newest first")
-	LsCmd.Flags().BoolP("r", "r", false, "Reverse order while sorting")
-	LsCmd.Flags().BoolP("S", "S", false, "Sort by file size, largest first")
-	LsCmd.Flags().BoolP("R", "R", false, "List subdirectories recursively")
-	LsCmd.Flags().BoolP("i", "i", false, "Print the index number of each file")
-	LsCmd.Flags().BoolP("g", "g", false, "Display group ownership")
-	LsCmd.Flags().BoolP("human-readable", "H", false, "Print sizes in human-readable format")
-	LsCmd.Flags().BoolP("list-dir", "l", false, "List directories themselves, not their contents")
+	LsCmd.Flags().StringP("directory", "D", ".", "Directory to list") // Usage: ls --directory <dir>
+	LsCmd.Flags().BoolP("a", "a", false, "Include hidden files") // Usage: ls -a
+	LsCmd.Flags().BoolP("F", "F", false, "Append indicator (one of */=>@|) to entries") // Usage: ls -F
+	LsCmd.Flags().BoolP("t", "t", false, "Sort by modification time, newest first") // Usage: ls -t
+	LsCmd.Flags().BoolP("r", "r", false, "Reverse order while sorting") // Usage: ls -r
+	LsCmd.Flags().BoolP("S", "S", false, "Sort by file size, largest first") // Usage: ls -S
+	LsCmd.Flags().BoolP("R", "R", false, "List subdirectories recursively") // Usage: ls -R
+	LsCmd.Flags().BoolP("i", "i", false, "Print the index number of each file") // Usage: ls -i
+	LsCmd.Flags().BoolP("g", "g", false, "Display group ownership") // Usage: ls -g
+	LsCmd.Flags().Bool("human-readable", false, "Print sizes in human-readable format") // Usage: ls -h
+	LsCmd.Flags().BoolP("list-dir", "d", false, "List directories themselves, rather than their contents") // Usage: ls -d
 }
