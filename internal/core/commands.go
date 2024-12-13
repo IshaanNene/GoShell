@@ -7,6 +7,8 @@ import (
 	"os/user"
 	"strings"
 	"time"
+	"io"
+	"bufio"
 )
 
 var PwdCmd = &cobra.Command{
@@ -64,5 +66,44 @@ var ClearCmd = &cobra.Command{
 	Short: "Clear the terminal screen",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Print("\033[H\033[2J")
+	},
+}
+
+var HeadCmd = &cobra.Command{
+	Use:   "head [file]",
+	Short: "Display the first 10 lines of a file",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		file, err := os.Open(args[0])
+		checkError(err, "opening file")
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for i := 0; i < 10 && scanner.Scan(); i++ {
+			fmt.Println(scanner.Text())
+		}
+		checkError(scanner.Err(), "reading file")
+	},
+}
+
+var TailCmd = &cobra.Command{
+	Use:   "tail [file]",
+	Short: "Display the last 10 lines of a file",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		file, err := os.Open(args[0])
+		checkError(err, "opening file")
+		defer file.Close()
+
+		lines, err := io.ReadAll(file)
+		checkError(err, "reading file")
+		allLines := strings.Split(string(lines), "\n")
+		start := len(allLines) - 10
+		if start < 0 {
+			start = 0
+		}
+		for _, line := range allLines[start:] {
+			fmt.Println(line)
+		}
 	},
 }
