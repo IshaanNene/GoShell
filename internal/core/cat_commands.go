@@ -22,11 +22,17 @@ var CatCmd = &cobra.Command{
 		showTabs, _ := cmd.Flags().GetBool("show-tabs")
 		showNonPrinting, _ := cmd.Flags().GetBool("show-nonprinting")
 
-		if len(args) > 1 && args[len(args)-2] == "mx" {
+		
+		if len(args) >= 3 && args[len(args)-2] == "mx" {
 			mergeFiles(args[:len(args)-2], args[len(args)-1])
 		} else {
-			for _, file := range args {
-				displayFile(file, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting)
+			
+			if len(args) == 0 {
+				displayStdin(number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting)
+			} else {
+				for _, file := range args {
+					displayFile(file, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting)
+				}
 			}
 		}
 	},
@@ -58,6 +64,20 @@ func mergeFiles(files []string, outputFile string) {
 	fmt.Println("Contents successfully written to", outputFile)
 }
 
+func displayStdin(number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting bool) {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	lineNumber := 1
+	prevLineEmpty := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		processAndPrintLine(line, &lineNumber, &prevLineEmpty, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Error reading from stdin: %v", err)
+	}
+}
+
 func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting bool) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -66,52 +86,71 @@ func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, sh
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
-	fmt.Println("Contents of:", file)
 
 	lineNumber := 1
 	prevLineEmpty := false
 	for scanner.Scan() {
 		line := scanner.Text()
-		if squeezeBlank && prevLineEmpty && line == "" {
-			continue
-		}
-		if showTabs {
-			line = strings.ReplaceAll(line, "	", "^I")
-		}
-		if showEnds {
-			line += "$"
-		}
-		if showNonPrinting {
-			line = showNonPrintableChars(line)
-		}
-		if numberNonBlank && line != "" {
-			fmt.Printf("    %d %s
-", lineNumber, line)
-			lineNumber++
-		} else if number {
-			fmt.Printf("    %d %s
-", lineNumber, line)
-			lineNumber++
-		} else {
-			fmt.Println(line)
-		}
-		prevLineEmpty = (line == "")
+		processAndPrintLine(line, &lineNumber, &prevLineEmpty, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting)
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("Error scanning file %s: %v", file, err)
 	}
-	fmt.Println()
+}
+
+func processAndPrintLine(line string, lineNumber *int, prevLineEmpty *bool, number, numberNonBlank, squeezeBlank, showEnds, showTabs, showNonPrinting bool) {
+	
+	if squeezeBlank && (*prevLineEmpty) && line == "" {
+		return
+	}
+
+	
+	processedLine := line
+
+	if showTabs == true {
+		processedLine = strings.ReplaceAll(processedLine, "\t", "^I")
+	}
+
+	if showNonPrinting == true {
+		processedLine = showNonPrintableChars(processedLine)
+	}
+
+	if showEnds == true {
+		processedLine += "$"
+	}
+
+	
+	if numberNonBlank == true && line != "" {
+		fmt.Printf("%6d\t%s\n", *lineNumber, processedLine)
+		(*lineNumber)++
+	} else if number == true {
+		fmt.Printf("%6d\t%s\n", *lineNumber, processedLine)
+		(*lineNumber)++
+	} else {
+		fmt.Println(processedLine)
+	}
+
+	*prevLineEmpty = (line == "")
 }
 
 func showNonPrintableChars(line string) string {
 	var result strings.Builder
 	for _, r := range line {
-		if r < 32 || r == 127 {
-			if r == '	' || r == '
-' {
-				result.WriteRune(r)
+		if r < 32 && r != '\t' && r != '\n' {
+			
+			if r == 127 {
+				result.WriteString("^?")
 			} else {
 				result.WriteString(fmt.Sprintf("^%c", r+64))
+			}
+		} else if r == 127 {
+			result.WriteString("^?")
+		} else if r > 127 {
+			
+			if r < 160 {
+				result.WriteString(fmt.Sprintf("M-^%c", r-64))
+			} else {
+				result.WriteString(fmt.Sprintf("M-%c", r-128))
 			}
 		} else {
 			result.WriteRune(r)

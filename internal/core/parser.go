@@ -1,43 +1,37 @@
 package core
 
 import (
-	"errors"
+	"fmt"
+	"regexp"
 	"strings"
 )
 
 type Command struct {
-	Name string
-	Args []string
+	Name        string
+	Args        []string
+	InputFile   string
+	OutputFile  string
+	AppendFile  string
+	ErrorFile   string
 }
 
 type CommandChain struct {
 	Commands  []Command
-	Operators []string // "|", "&&", "||", ";"
+	Operators []string 
 }
 
+
 func ParseInput(input string) (*CommandChain, error) {
-	input = strings.TrimSpace(input)
-	if input == "" {
+	if strings.TrimSpace(input) == "" {
 		return nil, nil
 	}
 
-	// Handle built-in exit command
-	if input == "exit" {
-		return &CommandChain{
-			Commands: []Command{{Name: "exit", Args: []string{}}},
-		}, nil
-	}
-
-	// Split by operators while preserving them
-	tokens, operators := tokenize(input)
 	
-	if len(tokens) == 0 {
-		return nil, errors.New("no commands found")
-	}
-
-	commands := make([]Command, 0, len(tokens))
-	for _, token := range tokens {
-		cmd, err := parseCommand(token)
+	parts, operators := splitByOperators(input)
+	
+	var commands []Command
+	for _, part := range parts {
+		cmd, err := parseCommand(strings.TrimSpace(part))
 		if err != nil {
 			return nil, err
 		}
@@ -50,63 +44,87 @@ func ParseInput(input string) (*CommandChain, error) {
 	}, nil
 }
 
-func tokenize(input string) ([]string, []string) {
-	var tokens []string
-	var operators []string
-	var current strings.Builder
+
+func splitByOperators(input string) ([]string, []string) {
 	
-	i := 0
-	for i < len(input) {
-		switch {
-		case i < len(input)-1 && input[i:i+2] == "&&":
-			if current.Len() > 0 {
-				tokens = append(tokens, strings.TrimSpace(current.String()))
-				current.Reset()
-			}
-			operators = append(operators, "&&")
-			i += 2
-		case i < len(input)-1 && input[i:i+2] == "||":
-			if current.Len() > 0 {
-				tokens = append(tokens, strings.TrimSpace(current.String()))
-				current.Reset()
-			}
-			operators = append(operators, "||")
-			i += 2
-		case input[i] == '|':
-			if current.Len() > 0 {
-				tokens = append(tokens, strings.TrimSpace(current.String()))
-				current.Reset()
-			}
-			operators = append(operators, "|")
-			i++
-		case input[i] == ';':
-			if current.Len() > 0 {
-				tokens = append(tokens, strings.TrimSpace(current.String()))
-				current.Reset()
-			}
-			operators = append(operators, ";")
-			i++
-		default:
-			current.WriteByte(input[i])
-			i++
+	re := regexp.MustCompile(`(\|\||\&&|\||\;)`)
+	
+	
+	parts := re.Split(input, -1)
+	matches := re.FindAllString(input, -1)
+	
+	var cleanParts []string
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			cleanParts = append(cleanParts, trimmed)
 		}
 	}
 	
-	if current.Len() > 0 {
-		tokens = append(tokens, strings.TrimSpace(current.String()))
-	}
-	
-	return tokens, operators
+	return cleanParts, matches
 }
 
+
 func parseCommand(cmdStr string) (Command, error) {
+	cmd := Command{}
+	
+	
+	cmdStr = handleRedirections(cmdStr, &cmd)
+	
+	
 	parts := strings.Fields(cmdStr)
 	if len(parts) == 0 {
-		return Command{}, errors.New("empty command")
+		return cmd, fmt.Errorf("empty command")
 	}
 	
-	return Command{
-		Name: parts[0],
-		Args: parts[1:],
-	}, nil
+	cmd.Name = parts[0]
+	if len(parts) > 1 {
+		cmd.Args = parts[1:]
+	}
+	
+	return cmd, nil
+}
+
+
+func handleRedirections(cmdStr string, cmd *Command) string {
+	
+	if strings.Contains(cmdStr, "<") {
+		parts := strings.Split(cmdStr, "<")
+		if len(parts) == 2 {
+			cmdStr = strings.TrimSpace(parts[0])
+			inputFile := strings.TrimSpace(parts[1])
+			
+			if idx := strings.IndexAny(inputFile, ">"); idx != -1 {
+				cmd.InputFile = strings.TrimSpace(inputFile[:idx])
+				cmdStr += " " + inputFile[idx:]
+			} else {
+				cmd.InputFile = inputFile
+			}
+		}
+	}
+	
+	
+	if strings.Contains(cmdStr, ">>") {
+		parts := strings.Split(cmdStr, ">>")
+		if len(parts) == 2 {
+			cmdStr = strings.TrimSpace(parts[0])
+			cmd.AppendFile = strings.TrimSpace(parts[1])
+		}
+	} else if strings.Contains(cmdStr, ">") {
+		
+		parts := strings.Split(cmdStr, ">")
+		if len(parts) == 2 {
+			cmdStr = strings.TrimSpace(parts[0])
+			outputFile := strings.TrimSpace(parts[1])
+			
+			
+			if strings.HasSuffix(parts[0], "2") {
+				cmdStr = strings.TrimSpace(parts[0][:len(parts[0])-1])
+				cmd.ErrorFile = outputFile
+			} else {
+				cmd.OutputFile = outputFile
+			}
+		}
+	}
+	
+	return cmdStr
 }

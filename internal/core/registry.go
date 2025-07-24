@@ -1,20 +1,26 @@
+
 package core
 
-import "github.com/spf13/cobra"
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+)
 
 var commandRegistry = make(map[string]*cobra.Command)
 
-// RegisterCommand registers a new command.
+
 func RegisterCommand(cmd *cobra.Command) {
 	commandRegistry[cmd.Name()] = cmd
 }
 
-// GetCommand returns a command from the registry.
+
 func GetCommand(name string) *cobra.Command {
 	return commandRegistry[name]
 }
 
-// GetRegisteredCommands returns a list of registered command names.
+
 func GetRegisteredCommands() []string {
 	var commands []string
 	for name := range commandRegistry {
@@ -23,6 +29,33 @@ func GetRegisteredCommands() []string {
 	return commands
 }
 
+
 func HistoryFilePath() string {
-	return historyFilePath
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		
+		return ".goshell_history"
+	}
+	return filepath.Join(homeDir, ".goshell_history")
+}
+
+
+func IsCommandRegistered(name string) bool {
+	_, exists := commandRegistry[name]
+	return exists
+}
+
+
+func UnregisterCommand(name string) {
+	delete(commandRegistry, name)
+}
+
+
+func ClearRegistry() {
+	commandRegistry = make(map[string]*cobra.Command)
+}
+
+
+func GetCommandCount() int {
+	return len(commandRegistry)
 }

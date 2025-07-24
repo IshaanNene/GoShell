@@ -1,4 +1,3 @@
-// main.go
 package main
 
 import (
@@ -11,25 +10,23 @@ import (
 )
 
 func main() {
-	// Initialize history
+	
 	historyManager, err := core.NewHistoryManager()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing history: %v
-", err)
+		fmt.Fprintf(os.Stderr, "Error initializing history: %v\n", err)
 	}
 	defer historyManager.Close()
 
-	// Initialize liner for line editing and history
+	
 	line := liner.NewLiner()
 	defer line.Close()
 
 	line.SetCtrlCAborts(true)
 	line.SetCompleter(func(line string) (c []string) {
-		// Basic file path completion
+		
 		if strings.Contains(line, " ") {
 			parts := strings.Split(line, " ")
 			prefix := parts[len(parts)-1]
-			// You can add more sophisticated completion logic here
 			files, _ := os.ReadDir("./")
 			for _, f := range files {
 				if strings.HasPrefix(f.Name(), prefix) {
@@ -40,7 +37,7 @@ func main() {
 		return
 	})
 
-	// Load history into liner
+	
 	for _, h := range historyManager.GetHistory() {
 		line.AppendHistory(h)
 	}
@@ -48,47 +45,45 @@ func main() {
 	executor := core.NewExecutor()
 
 	for {
-		// Get current working directory for the prompt
-		wd, err := os.Getwd()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting current directory: %v
-", err)
-			wd = "?"
-		}
-		prompt := fmt.Sprintf("%s> ", wd)
-
-		// Read input
-		input, err := line.Prompt(prompt)
+		
+		input, err := line.Prompt("goshell> ")
 		if err != nil {
 			if err == liner.ErrPromptAborted {
-				// User pressed Ctrl+C
+				
 				continue
 			}
-			break // Exit on other errors (e.g., EOF)
+			break 
 		}
 
-		// Add to history
+		
+		trimmedInput := strings.TrimSpace(input)
+		if trimmedInput == "exit()" || trimmedInput == "exit" {
+			break
+		}
+
+		
+		if trimmedInput == "" {
+			continue
+		}
+
+		
 		line.AppendHistory(input)
 		historyManager.Add(input)
 
-		// Parse and execute
-		if input != "" {
-			chain, err := core.ParseInput(input)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v
-", err)
-				continue
-			}
+		
+		chain, err := core.ParseInput(input)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			continue
+		}
 
-			if chain != nil {
-				if err := executor.ExecuteChain(chain); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %v
-", err)
-				}
+		if chain != nil {
+			if err := executor.ExecuteChain(chain); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			}
 		}
 	}
 
-	// Save history
+	
 	historyManager.Flush()
 }
