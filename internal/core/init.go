@@ -5,9 +5,6 @@ import (
 )
 
 func InitializeCommands() {
-	
-	
-	
 	if LsCmd != nil {
 		RegisterCommand(LsCmd)
 	}
