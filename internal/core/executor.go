@@ -26,22 +26,34 @@ func (e *Executor) SetHistoryManager(hm *HistoryManager) {
 	e.historyManager = hm
 }
 
+
+func (e *Executor) executeCommandWithFallback(cmd Command, stdin io.Reader, stdout io.Writer) error {
+	if IsCommandRegistered(cmd.Name) {
+		return e.executeRegisteredCommand(cmd, stdin, stdout)
+	}
+	if e.isBuiltIn(cmd.Name) {
+		return e.executeBuiltIn(cmd, stdin, stdout)
+	}
+	return e.executeExternalCommand(cmd, stdin, stdout)
+}
+
 func (e *Executor) ExecuteChain(chain *CommandChain) error {
 	if len(chain.Commands) == 0 {
 		return nil
 	}
 
-	
 	if len(chain.Commands) == 1 {
-		return e.executeCommand(chain.Commands[0], nil, nil)
+		return e.executeCommandWithFallback(chain.Commands[0], nil, nil)
 	}
 
-	
 	return e.executeChainedCommands(chain)
 }
 
+
+
 func (e *Executor) executeChainedCommands(chain *CommandChain) error {
-	for i, cmd := range chain.Commands {
+	for i := 0; i < len(chain.Commands); i++ {
+		cmd := chain.Commands[i]
 		var operator string
 		if i < len(chain.Operators) {
 			operator = chain.Operators[i]
@@ -50,36 +62,29 @@ func (e *Executor) executeChainedCommands(chain *CommandChain) error {
 		var err error
 		switch operator {
 		case "|":
-			
 			return e.executePipeChain(chain.Commands[i:])
 		case "&&":
-			
-			err = e.executeCommand(cmd, nil, nil)
+			err = e.executeCommandWithFallback(cmd, nil, nil)
 			if err != nil {
 				return err
 			}
 		case "||":
-			
-			err = e.executeCommand(cmd, nil, nil)
+			err = e.executeCommandWithFallback(cmd, nil, nil)
 			if err == nil {
-				
-				for j := i + 1; j < len(chain.Commands) && j < len(chain.Operators) && chain.Operators[j] == "||"; j++ {
+				for j := i + 1; j < len(chain.Operators) && chain.Operators[j] == "||"; j++ {
 					i = j
 				}
 			}
 		case ";", "":
-			
-			err = e.executeCommand(cmd, nil, nil)
-			
+			err = e.executeCommandWithFallback(cmd, nil, nil)
 		}
-		
+
 		if operator != ";" && err != nil {
 			e.lastExitCode = 1
 		} else if err == nil {
 			e.lastExitCode = 0
 		}
 	}
-
 	return nil
 }
 
