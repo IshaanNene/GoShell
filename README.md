@@ -20,14 +20,8 @@
   `---`                                       `----'                   
 ```
 
-Welcome to **GoShell**, an ambitious and dynamic shell application written in Go. This project aims to bring robust, modular, and user-friendly shell commands to your fingertips. Whether you’re managing files or navigating directories, GoShell provides an intuitive command-line interface to streamline your workflows.
-
-## Features
-
-- **Concatenate and Display File Contents**: Use `cat` to view and merge files with additional options.
-- **Change Directory**: The `cd` command allows seamless navigation between directories.
-- **Remove Files and Directories**: Efficiently remove files or directories with various flags.
-- **Modular Architecture**: Built with a clean structure for easy maintenance and expansion.
+Welcome to **GoShell**, is a shell command-line interface built entirely with Go
+Supports Command Execution, File Redirection, Pipes, Command Chaining & Command History
 
 ## Installation
 
@@ -51,26 +45,10 @@ To get started with GoShell, follow these steps:
     go build -o goshell ./cmd/goshell
     ```
 
-## Usage
-
-Here are some examples of how to use GoShell:
-
-- **Change Directory:**
+4. **Run using this**
 
     ```bash
-    ./goshell cd /path/to/directory
-    ```
-
-- **Concatenate Files:**
-
-    ```bash
-    ./goshell cat n file1.txt file2.txt
-    ```
-
-- **Remove a File:**
-
-    ```bash
-    ./goshell rm file.txt
+    ./goshell
     ```
 
 ## Contributing
