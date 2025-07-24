@@ -1,61 +1,94 @@
+// main.go
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/IshaanNene/GoShell/internal/core"
-	"github.com/spf13/cobra"
-	"github.com/fatih/color"
+	"github.com/peterh/liner"
 )
 
 func main() {
-	color.Green("Welcome to GoShell! Press Ctrl+C to exit.")
+	// Initialize history
+	historyManager, err := core.NewHistoryManager()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing history: %v
+", err)
+	}
+	defer historyManager.Close()
 
-	reader := bufio.NewReader(os.Stdin)
+	// Initialize liner for line editing and history
+	line := liner.NewLiner()
+	defer line.Close()
+
+	line.SetCtrlCAborts(true)
+	line.SetCompleter(func(line string) (c []string) {
+		// Basic file path completion
+		if strings.Contains(line, " ") {
+			parts := strings.Split(line, " ")
+			prefix := parts[len(parts)-1]
+			// You can add more sophisticated completion logic here
+			files, _ := os.ReadDir("./")
+			for _, f := range files {
+				if strings.HasPrefix(f.Name(), prefix) {
+					c = append(c, f.Name())
+				}
+			}
+		}
+		return
+	})
+
+	// Load history into liner
+	for _, h := range historyManager.GetHistory() {
+		line.AppendHistory(h)
+	}
+
+	executor := core.NewExecutor()
 
 	for {
-		fmt.Print("> ") // Simple prompt
+		// Get current working directory for the prompt
+		wd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting current directory: %v
+", err)
+			wd = "?"
+		}
+		prompt := fmt.Sprintf("%s> ", wd)
 
-		input, _ := reader.ReadString('
-')
-		input = strings.TrimSpace(input)
-
-		if input == "exit" {
-			break
+		// Read input
+		input, err := line.Prompt(prompt)
+		if err != nil {
+			if err == liner.ErrPromptAborted {
+				// User pressed Ctrl+C
+				continue
+			}
+			break // Exit on other errors (e.g., EOF)
 		}
 
-		// Here we will add the parsing and execution logic
-		// For now, we just print the input
-		fmt.Printf("You entered: %s
-", input)
+		// Add to history
+		line.AppendHistory(input)
+		historyManager.Add(input)
 
-		// In a real shell, you would parse the input,
-		// execute the command, and handle output.
+		// Parse and execute
+		if input != "" {
+			chain, err := core.ParseInput(input)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v
+", err)
+				continue
+			}
+
+			if chain != nil {
+				if err := executor.ExecuteChain(chain); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: %v
+", err)
+				}
+			}
+		}
 	}
-}
 
-// We will keep the rootCmd and command definitions for now,
-// but they will be used differently later when we implement
-// the command parsing and execution.
-var rootCmd = &cobra.Command{
-	Use:   "goshell",
-	Short: "A simple shell command executor",
-	Run: func(cmd *cobra.Command, args []string) {
-		color.Green("Welcome to GoShell! Use 'goshell help' to see available commands.")
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(core.LsCmd)
-	rootCmd.AddCommand(core.CdCmd)
-	rootCmd.AddCommand(core.MkdirCmd)
-	rootCmd.AddCommand(core.RmCmd)
-	rootCmd.AddCommand(core.TouchCmd)
-	rootCmd.AddCommand(core.PwdCmd)
-	rootCmd.AddCommand(core.CatCmd)
-	rootCmd.AddCommand(core.DateCmd)
-	rootCmd.AddCommand(core.Iamwho)
+	// Save history
+	historyManager.Flush()
 }

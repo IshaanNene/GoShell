@@ -1,157 +1,112 @@
 package core
 
 import (
-	"fmt"
+	"errors"
 	"strings"
-	"text/scanner"
 )
 
-// ParsedCommand represents a single command with its arguments and potential redirection.
-type ParsedCommand struct {
+type Command struct {
 	Name string
 	Args []string
-	RedirectInput string
-	RedirectOutput string
-	AppendOutput bool
 }
 
-// CommandPipeline represents a sequence of commands connected by pipes.
-type CommandPipeline struct {
-	Commands []*ParsedCommand
-}
-
-// CommandChain represents a sequence of command pipelines connected by chaining operators (&&, ||, ;).
 type CommandChain struct {
-	Pipelines []*CommandPipeline
-	Operators []string // &&, ||, or ;
+	Commands  []Command
+	Operators []string // "|", "&&", "||", ";"
 }
 
-// ParseInput parses the input string into a CommandChain.
 func ParseInput(input string) (*CommandChain, error) {
-	// Trim leading/trailing whitespace
 	input = strings.TrimSpace(input)
-
-	// Handle empty input
 	if input == "" {
 		return nil, nil
 	}
 
-	chain := &CommandChain{}
-
-	// Split by chaining operators (&&, ||, ;)
-	chainOperators := []string{"&&", "||", ";"}
-	pipelineStrs, operators := splitByOperators(input, chainOperators)
-
-	for _, pipelineStr := range pipelineStrs {
-		pipelineStr = strings.TrimSpace(pipelineStr)
-		if pipelineStr == "" {
-			continue
-		}
-
-		pipeline := &CommandPipeline{}
-		// Split by pipe operator
-		commandStrs := strings.Split(pipelineStr, "|")
-
-		for _, commandStr := range commandStrs {
-			commandStr = strings.TrimSpace(commandStr)
-			if commandStr == "" {
-				return nil, fmt.Errorf("syntax error: empty command in pipeline")
-			}
-
-			parsedCmd, err := parseSingleCommand(commandStr)
-			if err != nil {
-				return nil, err
-			}
-
-			pipeline.Commands = append(pipeline.Commands, parsedCmd)
-		}
-
-		chain.Pipelines = append(chain.Pipelines, pipeline)
+	// Handle built-in exit command
+	if input == "exit" {
+		return &CommandChain{
+			Commands: []Command{{Name: "exit", Args: []string{}}},
+		}, nil
 	}
 
-	chain.Operators = operators
+	// Split by operators while preserving them
+	tokens, operators := tokenize(input)
+	
+	if len(tokens) == 0 {
+		return nil, errors.New("no commands found")
+	}
 
-	return chain, nil
+	commands := make([]Command, 0, len(tokens))
+	for _, token := range tokens {
+		cmd, err := parseCommand(token)
+		if err != nil {
+			return nil, err
+		}
+		commands = append(commands, cmd)
+	}
+
+	return &CommandChain{
+		Commands:  commands,
+		Operators: operators,
+	}, nil
 }
 
-// parseSingleCommand parses a single command string, including redirection.
-func parseSingleCommand(commandStr string) (*ParsedCommand, error) {
-	parsedCmd := &ParsedCommand{}
-
-	var s scanner.Scanner
-	s.Init(strings.NewReader(commandStr))
-	s.Mode = scanner.ScanWords | scanner.ScanStrings
-
-	// Read the command name
-	token := s.Scan()
-	if token == scanner.EOF {
-		return nil, fmt.Errorf("syntax error: empty command")
-	}
-	parsedCmd.Name = s.TokenText()
-
-	// Read arguments and redirection operators
-	args := []string{}
-	for token != scanner.EOF {
-		token = s.Scan()
-		part := s.TokenText()
-
-		switch part {
-		case ">";
-			token = s.Scan()
-			if token == scanner.EOF || s.TokenText() == "" {
-				return nil, fmt.Errorf("syntax error: no output file specified after >")
+func tokenize(input string) ([]string, []string) {
+	var tokens []string
+	var operators []string
+	var current strings.Builder
+	
+	i := 0
+	for i < len(input) {
+		switch {
+		case i < len(input)-1 && input[i:i+2] == "&&":
+			if current.Len() > 0 {
+				tokens = append(tokens, strings.TrimSpace(current.String()))
+				current.Reset()
 			}
-			parsedCmd.RedirectOutput = s.TokenText()
-			parsedCmd.AppendOutput = false
-		case ">>":
-			token = s.Scan()
-			if token == scanner.EOF || s.TokenText() == "" {
-				return nil, fmt.Errorf("syntax error: no output file specified after >>")
+			operators = append(operators, "&&")
+			i += 2
+		case i < len(input)-1 && input[i:i+2] == "||":
+			if current.Len() > 0 {
+				tokens = append(tokens, strings.TrimSpace(current.String()))
+				current.Reset()
 			}
-			parsedCmd.RedirectOutput = s.TokenText()
-			parsedCmd.AppendOutput = true
-		case "<":
-			token = s.Scan()
-			if token == scanner.EOF || s.TokenText() == "" {
-				return nil, fmt.Errorf("syntax error: no input file specified after <")
+			operators = append(operators, "||")
+			i += 2
+		case input[i] == '|':
+			if current.Len() > 0 {
+				tokens = append(tokens, strings.TrimSpace(current.String()))
+				current.Reset()
 			}
-			parsedCmd.RedirectInput = s.TokenText()
+			operators = append(operators, "|")
+			i++
+		case input[i] == ';':
+			if current.Len() > 0 {
+				tokens = append(tokens, strings.TrimSpace(current.String()))
+				current.Reset()
+			}
+			operators = append(operators, ";")
+			i++
 		default:
-			if token != scanner.EOF {
-				args = append(args, part)
-			}
-		}
-	}
-
-	parsedCmd.Args = args
-
-	return parsedCmd, nil
-}
-
-// splitByOperators splits a string by a list of operators, returning the parts and the operators found.
-func splitByOperators(input string, operators []string) ([]string, []string) {
-	var parts []string
-	var ops []string
-	lastIndex := 0
-
-	for i := 0; i < len(input); {
-		foundOperator := false
-		for _, op := range operators {
-			if strings.HasPrefix(input[i:], op) {
-				parts = append(parts, input[lastIndex:i])
-				ops = append(ops, op)
-				lastIndex = i + len(op)
-				i += len(op)
-				foundOperator = true
-				break
-			}
-		}
-		if !foundOperator {
+			current.WriteByte(input[i])
 			i++
 		}
 	}
+	
+	if current.Len() > 0 {
+		tokens = append(tokens, strings.TrimSpace(current.String()))
+	}
+	
+	return tokens, operators
+}
 
-	parts = append(parts, input[lastIndex:])
-
-	return parts, ops
+func parseCommand(cmdStr string) (Command, error) {
+	parts := strings.Fields(cmdStr)
+	if len(parts) == 0 {
+		return Command{}, errors.New("empty command")
+	}
+	
+	return Command{
+		Name: parts[0],
+		Args: parts[1:],
+	}, nil
 }

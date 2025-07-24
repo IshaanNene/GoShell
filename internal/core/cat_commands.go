@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	_ "github.com/thanhpk/ascii"
 )
 
 var CatCmd = &cobra.Command{
@@ -77,7 +76,7 @@ func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, sh
 			continue
 		}
 		if showTabs {
-			line = strings.ReplaceAll(line, "\t", "^I")
+			line = strings.ReplaceAll(line, "	", "^I")
 		}
 		if showEnds {
 			line += "$"
@@ -86,10 +85,12 @@ func displayFile(file string, number, numberNonBlank, squeezeBlank, showEnds, sh
 			line = showNonPrintableChars(line)
 		}
 		if numberNonBlank && line != "" {
-			fmt.Printf("    %d %s\n", lineNumber, line)
+			fmt.Printf("    %d %s
+", lineNumber, line)
 			lineNumber++
 		} else if number {
-			fmt.Printf("    %d %s\n", lineNumber, line)
+			fmt.Printf("    %d %s
+", lineNumber, line)
 			lineNumber++
 		} else {
 			fmt.Println(line)
@@ -106,7 +107,8 @@ func showNonPrintableChars(line string) string {
 	var result strings.Builder
 	for _, r := range line {
 		if r < 32 || r == 127 {
-			if r == '\t' || r == '\n' {
+			if r == '	' || r == '
+' {
 				result.WriteRune(r)
 			} else {
 				result.WriteString(fmt.Sprintf("^%c", r+64))
