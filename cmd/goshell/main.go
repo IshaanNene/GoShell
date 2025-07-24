@@ -1,4 +1,4 @@
-// cmd/goshell/main.go
+
 package main
 
 import (
@@ -11,20 +11,20 @@ import (
 )
 
 func main() {
-	// Initialize history
+	
 	historyManager, err := core.NewHistoryManager()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing history: %v\n", err)
 	}
 	defer historyManager.Close()
 
-	// Initialize liner for line editing and history
+	
 	line := liner.NewLiner()
 	defer line.Close()
 
 	line.SetCtrlCAborts(true)
 	line.SetCompleter(func(line string) (c []string) {
-		// Basic file path completion
+		
 		if strings.Contains(line, " ") {
 			parts := strings.Split(line, " ")
 			prefix := parts[len(parts)-1]
@@ -36,7 +36,7 @@ func main() {
 			}
 		}
 		
-		// Add registered command completion
+		
 		registeredCommands := core.GetRegisteredCommands()
 		for _, cmd := range registeredCommands {
 			if strings.HasPrefix(cmd, strings.Fields(line)[0]) {
@@ -47,62 +47,61 @@ func main() {
 		return
 	})
 
-	// Load history into liner
+	
 	for _, h := range historyManager.GetHistory() {
 		line.AppendHistory(h)
 	}
 
-	// Initialize executor and set history manager
+	
 	executor := core.NewExecutor()
 	executor.SetHistoryManager(historyManager)
 
-	// Initialize all your custom commands
-	// This registers the commands that are already defined in your command files
+	
+	
 	core.InitializeCommands()
 
-	// Validate that commands were properly initialized
+	
 	missing := core.ValidateCommands()
 	if len(missing) > 0 {
 		fmt.Printf("Warning: Some commands not initialized: %v\n", missing)
 	}
 
-	fmt.Printf("GoShell v1.0 - Enhanced Shell\n")
-	fmt.Printf("Registered commands: %d\n", core.GetCommandCount())
+	fmt.Printf("GoShell v1.0 - Get Shelled\n")
 	fmt.Printf("Type 'help' for available commands or 'exit' to quit.\n\n")
 
 	for {
-		// Read input with goshell> prompt
+		
 		input, err := line.Prompt("goshell> ")
 		if err != nil {
 			if err == liner.ErrPromptAborted {
-				// User pressed Ctrl+C
+				
 				continue
 			}
-			break // Exit on other errors (e.g., EOF)
+			break 
 		}
 
-		// Check for exit command
+		
 		trimmedInput := strings.TrimSpace(input)
 		if trimmedInput == "exit()" || trimmedInput == "exit" {
 			break
 		}
 
-		// Skip empty input
+		
 		if trimmedInput == "" {
 			continue
 		}
 
-		// Handle help command
+		
 		if trimmedInput == "help" {
 			showHelp()
 			continue
 		}
 
-		// Add to history
+		
 		line.AppendHistory(input)
 		historyManager.Add(input)
 
-		// Parse and execute
+		
 		chain, err := core.ParseInput(input)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -116,7 +115,7 @@ func main() {
 		}
 	}
 
-	// Save history
+	
 	historyManager.Flush()
 }
 
@@ -124,7 +123,7 @@ func showHelp() {
 	fmt.Println("GoShell - Available Commands:")
 	fmt.Println()
 	
-	// Show custom commands that are available
+	
 	customCommands := core.GetAvailableCommands()
 	if len(customCommands) > 0 {
 		fmt.Println("Custom Commands:")
@@ -134,14 +133,14 @@ func showHelp() {
 		fmt.Println()
 	}
 	
-	// Show built-in commands
+	
 	fmt.Println("Built-in Commands:")
 	builtIns := []string{"pwd", "echo", "history", "exit", "help"}
 	for _, cmd := range builtIns {
 		fmt.Printf("  %s\n", cmd)
 	}
 	
-	// Show registered commands from registry
+	
 	registered := core.GetRegisteredCommands()
 	if len(registered) > 0 {
 		fmt.Println("\nRegistered Commands:")

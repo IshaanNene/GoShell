@@ -5,8 +5,8 @@ import (
 )
 
 func InitializeCommands() {
-	// Register commands that are already defined in your command files
-	// These are automatically initialized when the packages are imported
+	
+	
 	
 	if LsCmd != nil {
 		RegisterCommand(LsCmd)
@@ -32,18 +32,18 @@ func InitializeCommands() {
 		RegisterCommand(CdCmd)
 	}
 	
-	// Register any other commands you might have
+	
 	registerAdditionalCommands()
 }
 
-// registerAdditionalCommands can be used to register more commands
-// as you add them to your shell
+
+
 func registerAdditionalCommands() {
-	// Add any additional command registrations here
-	// For example, if you add a grep command, pwd command, etc.
+	
+	
 }
 
-// Helper function to check if expected commands are initialized
+
 func ValidateCommands() []string {
 	var missing []string
 	
@@ -69,7 +69,7 @@ func ValidateCommands() []string {
 	return missing
 }
 
-// GetAvailableCommands returns a list of all available custom commands
+
 func GetAvailableCommands() []string {
 	var commands []string
 	
